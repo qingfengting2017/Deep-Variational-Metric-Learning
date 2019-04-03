@@ -27,7 +27,7 @@ LR_init=7e-5
 LR_gen=1e-2
 LR_s=1e-3
 bp_epoch=200
-MAX_ITER=1600
+MAX_ITER=1200
 
 #############################################################
 image_mean = np.array([123, 117, 104], dtype=np.float32)  # RGB
@@ -49,6 +49,20 @@ nn_Ops.create_path(time.strftime('%m-%d-%H-%M', time.localtime(time.time())))
 tfd = tfp.distributions
 prior = tfd.Independent(tfd.Normal(loc=tf.zeros(EMBEDDING_SIZE), scale=1),
                         reinterpreted_batch_ndims=1)
+
+def mysampling(z_mean, z_log_var):
+    """Reparameterization trick by sampling from an isotropic unit Gaussian.
+    # Arguments
+        args (tensor): mean and log of variance of Q(z|X)
+    # Returns
+        z (tensor): sampled latent vector
+    """
+
+    batch = K.shape(z_mean)[0]
+    dim = K.int_shape(z_mean)[1]
+    # by default, random_normal has mean = 0 and std = 1.0
+    epsilon = K.random_normal(shape=(batch, dim))
+    return z_mean + K.exp(0.5 * z_log_var) * epsilon
 
 def main(_):
     x_raw = tf.placeholder(tf.float32, shape=[None, IMAGE_SIZE, IMAGE_SIZE, 3])
@@ -102,12 +116,13 @@ def main(_):
             
 
 
-    zv = tfd.Independent(tfd.Normal(loc=embedding_mu, scale=embedding_sigma),
-                        reinterpreted_batch_ndims=1)
-    zv_emb=zv.sample([1])
+    zv_emb = mysampling(embedding_mu, embedding_sigma)
+    # zv = tfd.Independent(tfd.Normal(loc=embedding_mu, scale=embedding_sigma),
+                        # reinterpreted_batch_ndims=1)
+    # zv_emb=zv.sample([1])
     zv_emb1=tf.reshape(zv_emb,(-1,128))
-    zv_prob=zv.prob(zv_emb)
-    prior_prob=zv.prob(zv_emb)
+    # zv_prob=zv.prob(zv_emb)
+    # prior_prob=zv.prob(zv_emb)
 
     embedding_z_add = tf.add(embedding_z, zv_emb1,name='Synthesized_features')
     with tf.variable_scope('Decoder'):
